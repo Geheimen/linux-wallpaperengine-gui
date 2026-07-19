@@ -32,6 +32,8 @@ func StartDetector(callback func(bool)) {
 
 	go func() {
 		lastStatus := false
+		lastGamePID := 0
+		currentStatus := false
 		for detectorRunning {
 			conf, err := config.GetConfig()
 			if err != nil {
@@ -52,8 +54,13 @@ func StartDetector(callback func(bool)) {
 				continue
 			}
 
-			// Check for Proton window
-			currentStatus := checkProtonGame()
+			// Only scan all process if no Proton game was detected before,
+			// otherwise only check if the last known PID is still running and still belongs to Proton
+			if lastGamePID != 0 {
+				currentStatus, lastGamePID = checkProtonGameStillRunning(lastGamePID)
+			} else {
+				currentStatus, lastGamePID = checkProtonGame()
+			}
 
 			if currentStatus != lastStatus {
 				isProtonGameDetected = currentStatus
@@ -77,12 +84,12 @@ func StartDetector(callback func(bool)) {
 	logger.Println("Proton detector started")
 }
 
-func checkProtonGame() bool {
+func checkProtonGame() (bool, int) {
 	// Search for a proton process in /proc
 	procs, err := os.ReadDir("/proc")
 
 	if err != nil {
-		return false
+		return false, 0
 	}
 
 	for _, proc := range procs {
@@ -90,20 +97,28 @@ func checkProtonGame() bool {
 			continue
 		}
 		// Search for all PIDs in /proc (will only be numeric folders)
-		if _, err := strconv.Atoi(proc.Name()); err == nil {
-			cmdlinePath := fmt.Sprintf("/proc/%s/cmdline", proc.Name())
-			cmdlineBytes, err := os.ReadFile(cmdlinePath)
-			if err == nil {
+		if procPID, err := strconv.Atoi(proc.Name()); err == nil {
+			cmdlinePath := fmt.Sprintf("/proc/%d/cmdline", procPID)
+			if cmdlineBytes, err := os.ReadFile(cmdlinePath); err == nil {
 				//Check if the process' cmdline includes the text "/proton",
 				//which implies the proton script is running
 				if strings.Contains(string(cmdlineBytes), "/proton") {
-					return true
+					return true, procPID
 				}
 			}
 		}
 	}
+	return false, 0
+}
 
-	return false
+func checkProtonGameStillRunning(lastGamePID int) (bool, int) {
+	cmdlinePath := fmt.Sprintf("/proc/%d/cmdline", lastGamePID)
+	if cmdlineBytes, err := os.ReadFile(cmdlinePath); err == nil {
+		if strings.Contains(string(cmdlineBytes), "/proton") {
+			return true, lastGamePID
+		}
+	}
+	return false, 0
 }
 
 // StopDetector stops the Proton detection
