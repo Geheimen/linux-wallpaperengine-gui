@@ -211,6 +211,7 @@ func (application *App) Cleanup() {
 	logger.Println("Performing cleanup...")
 	application.processManager.KillAll()
 	fullscreen.StopDetector()
+	proton.StopDetector()
 	electron.Stop()
 	if _, err := os.Stat(application.socketPath); err == nil {
 		if err := os.Remove(application.socketPath); err != nil {
