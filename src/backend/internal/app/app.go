@@ -125,8 +125,12 @@ func (application *App) setupProtonDetector() {
 			application.wallpaperService.KillAllWallpapers()
 			application.playlistService.PausePlaylistCycle()
 		} else {
-			application.wallpaperService.ApplyWallpapers()
-			application.playlistService.ResumePlaylistCycle()
+			if err := application.wallpaperService.ApplyWallpapers(); err != nil {
+				logger.Printf("Failed to apply wallpapers when Proton game was closed: %v", err)
+				notification.Error("Wallpaper Engine Error", "Failed to apply wallpapers when Proton game was closed: "+err.Error())
+			} else {
+				application.playlistService.ResumePlaylistCycle()
+			}
 		}
 	})
 }
