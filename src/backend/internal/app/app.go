@@ -20,6 +20,7 @@ import (
 	"linux-wallpaperengine-gui/src/backend/internal/platform/fullscreen"
 	"linux-wallpaperengine-gui/src/backend/internal/platform/notification"
 	"linux-wallpaperengine-gui/src/backend/internal/platform/process"
+	"linux-wallpaperengine-gui/src/backend/internal/platform/proton"
 	"linux-wallpaperengine-gui/src/backend/internal/ui/electron"
 	"linux-wallpaperengine-gui/src/backend/internal/ui/tray"
 )
@@ -66,6 +67,7 @@ func (application *App) Run() {
 	application.setupDisplayWatcher()
 	application.setupFullscreenDetector()
 	application.applyInitialWallpapers()
+	application.setupProtonDetector()
 	application.setupTray()
 	application.handleSignals()
 
@@ -114,6 +116,18 @@ func (application *App) setupDisplayWatcher() {
 			notification.Error("Wallpaper Engine Error", "Failed to apply wallpapers on display change: "+err.Error())
 		}
 		api.BroadcastEvent("screens-changed", nil)
+	})
+}
+
+func (application *App) setupProtonDetector() {
+	proton.StartDetector(func(isProtonGameRunning bool) {
+		if isProtonGameRunning {
+			application.wallpaperService.KillAllWallpapers()
+			application.playlistService.PausePlaylistCycle()
+		} else {
+			application.wallpaperService.ApplyWallpapers()
+			application.playlistService.ResumePlaylistCycle()
+		}
 	})
 }
 
